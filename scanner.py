@@ -11,8 +11,8 @@ def banner():
     console.print(Panel("[bold red]BUGING - ADVANCED RECON & BUG SUITE[/bold red]\n[cyan]Full Target Intelligence & Vulnerability Scanner[/cyan]", border_style="yellow"))
 
 def full_recon(target):
-    # URL से सिर्फ डोमेन निकालना (जैसे https://example.com/xyz -> example.com)
-    if "http://" in target or "https://://" in target or "https://" in target:
+    # Clean up URL to extract base domain
+    if "http://" in target or "https://" in target:
         parsed_url = urlparse(target)
         domain = parsed_url.netloc
     else:
@@ -28,16 +28,16 @@ def full_recon(target):
         console.print(f"[red][-] IP Resolve Failed: {e}[/red]")
         return
 
-    # 2. Geo-Location & Hosting Info (Using ipapi.co free API)
+    # 2. Geo-Location & Hosting Info
     try:
         res = requests.get(f"https://ipapi.co/{ip}/json/", timeout=5).json()
         console.print(f"[green][+] Country / City    :[/green] {res.get('country_name')} / {res.get('city')}")
         console.print(f"[green][+] ISP / Organization  :[/green] {res.get('org')} ({res.get('asn')})")
         console.print(f"[green][+] Hosting Provider  :[/green] {res.get('network', 'Unknown')}")
     except Exception:
-        console.print("[red][-] Geo-Location fetch nahi ho paya.[/red]")
+        console.print("[red][-] Geo-Location fetch failed.[/red]")
 
-    # 3. HTTP Headers & WAF / Cloudflare Check (Fake/Hidden Protection Check)
+    # 3. HTTP Headers & WAF / Cloudflare Check
     try:
         target_url = f"https://{domain}" if not target.startswith("http") else target
         response = requests.get(target_url, timeout=5)
@@ -47,9 +47,9 @@ def full_recon(target):
         server = response.headers.get("Server", "Hidden/Unknown")
         console.print(f"[green][+] Server Software     :[/green] {server}")
         
-        # Check for Cloudflare / WAF (Fake IP hiding real backend)
+        # Check for Cloudflare / WAF
         if "cloudflare" in server.lower() or "cf-ray" in response.headers:
-            console.print("[bold red][!] WAF Detected:[/bold red] Yeh site Cloudflare ke peeche chhupi hai (Real IP masked hai!).")
+            console.print("[bold red][!] WAF Detected:[/bold red] Site is protected by Cloudflare (Real IP might be masked!).")
         else:
             console.print("[green][+] WAF/CDN             :[/green] Direct Server (No Cloudflare mask detected).")
 
@@ -79,9 +79,18 @@ def full_recon(target):
 
 def main():
     banner()
-    console.print("[1] Full Recon & IP/Hosting Intelligence (Works on any website)")
+    console.print("[1] Full Recon & IP/Hosting Intelligence")
     console.print("[2] Exit")
     
-    choice = console.input("\n[bold cyan]Option chunein (1/2): [/bold cyan]")
+    choice = console.input("\n[bold cyan]Select an option (1/2): [/bold cyan]")
     if choice == "1":
-        target = console.input("Target Domain ya URL dalein (jaise rocketbhai
+        target = console.input("Enter target domain or URL (e.g., example.com): ")
+        full_recon(target)
+    elif choice == "2":
+        console.print("[bold red]Exiting... Stay safe and ethical![/bold red]")
+        sys.exit()
+    else:
+        console.print("[red]Invalid choice![/red]")
+
+if __name__ == "__main__":
+    main()
