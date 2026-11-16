@@ -1,3 +1,4 @@
+cat << 'EOF' > scanner.py
 import sys
 import socket
 import requests
@@ -8,10 +9,9 @@ from rich.panel import Panel
 console = Console()
 
 def banner():
-    console.print(Panel("[bold red]BUGING - ADVANCED RECON & BUG SUITE[/bold red]\n[cyan]Full Target Intelligence & Vulnerability Scanner[/cyan]", border_style="yellow"))
+    console.print(Panel("[bold red]BUGING - ADVANCED RECON & INTELLIGENCE SUITE[/bold red]\n[cyan]Full Target Intelligence & Security Auditor[/cyan]", border_style="yellow"))
 
 def full_recon(target):
-    # Clean up URL to extract base domain
     if "http://" in target or "https://" in target:
         parsed_url = urlparse(target)
         domain = parsed_url.netloc
@@ -47,13 +47,11 @@ def full_recon(target):
         server = response.headers.get("Server", "Hidden/Unknown")
         console.print(f"[green][+] Server Software     :[/green] {server}")
         
-        # Check for Cloudflare / WAF
         if "cloudflare" in server.lower() or "cf-ray" in response.headers:
             console.print("[bold red][!] WAF Detected:[/bold red] Site is protected by Cloudflare (Real IP might be masked!).")
         else:
             console.print("[green][+] WAF/CDN             :[/green] Direct Server (No Cloudflare mask detected).")
 
-        # Check important security headers
         headers_to_check = ["X-Frame-Options", "Content-Security-Policy", "X-XSS-Protection"]
         for h in headers_to_check:
             if h in response.headers:
@@ -84,7 +82,7 @@ def main():
     
     choice = console.input("\n[bold cyan]Select an option (1/2): [/bold cyan]")
     if choice == "1":
-        target = console.input("Enter target domain or URL (e.g., example.com): ")
+        target = console.input("Enter target domain or URL (e.g., rocketbhaiya.in): ")
         full_recon(target)
     elif choice == "2":
         console.print("[bold red]Exiting... Stay safe and ethical![/bold red]")
@@ -94,3 +92,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+EOF
