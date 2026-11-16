@@ -1,94 +1,87 @@
 import sys
+import socket
 import requests
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from urllib.parse import urlparse
 from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
 
-# कॉमन टेस्ट पेलोड्स (Real Bug Payloads)
-XSS_PAYLOAD = "<script>alert(1)</script>"
-SQLI_PAYLOAD = "' OR '1'='1"
-
 def banner():
-    console.print(Panel("[bold red]REAL BUG HUNTER TOOL[/bold red]\n[cyan]Automated Vulnerability Scanner[/cyan]", border_style="yellow"))
+    console.print(Panel("[bold red]BUGING - ADVANCED RECON & BUG SUITE[/bold red]\n[cyan]Full Target Intelligence & Vulnerability Scanner[/cyan]", border_style="yellow"))
 
-def scan_xss(target_url):
-    console.print(f"[yellow][*] Testing for Reflected XSS on: {target_url}[/yellow]")
-    parsed_url = urlparse(target_url)
-    params = parse_qs(parsed_url.query)
-    
-    if not params:
-        console.print("[red][!] URL me koi parameters nahi mile (jaise ?q=test). XSS test ke liye parameter zaroori hai.[/red]")
+def full_recon(target):
+    # URL से सिर्फ डोमेन निकालना (जैसे https://example.com/xyz -> example.com)
+    if "http://" in target or "https://://" in target or "https://" in target:
+        parsed_url = urlparse(target)
+        domain = parsed_url.netloc
+    else:
+        domain = target.split("/")[0]
+
+    console.print(f"\n[bold yellow][*] Gathering Full Intelligence for: {domain}[/bold yellow]\n")
+
+    # 1. IP Address Lookup
+    try:
+        ip = socket.gethostbyname(domain)
+        console.print(f"[green][+] Public IP Address :[/green] {ip}")
+    except Exception as e:
+        console.print(f"[red][-] IP Resolve Failed: {e}[/red]")
         return
 
-    vulnerable = False
-    for param in params:
-        test_params = params.copy()
-        test_params[param] = XSS_PAYLOAD
-        new_query = urlencode(test_params, doseq=True)
-        new_parts = parsed_url._replace(query=new_query)
-        test_url = urlunparse(new_parts)
+    # 2. Geo-Location & Hosting Info (Using ipapi.co free API)
+    try:
+        res = requests.get(f"https://ipapi.co/{ip}/json/", timeout=5).json()
+        console.print(f"[green][+] Country / City    :[/green] {res.get('country_name')} / {res.get('city')}")
+        console.print(f"[green][+] ISP / Organization  :[/green] {res.get('org')} ({res.get('asn')})")
+        console.print(f"[green][+] Hosting Provider  :[/green] {res.get('network', 'Unknown')}")
+    except Exception:
+        console.print("[red][-] Geo-Location fetch nahi ho paya.[/red]")
+
+    # 3. HTTP Headers & WAF / Cloudflare Check (Fake/Hidden Protection Check)
+    try:
+        target_url = f"https://{domain}" if not target.startswith("http") else target
+        response = requests.get(target_url, timeout=5)
+        console.print(f"\n[bold yellow][*] Web Server & Security Headers Analysis:[/bold yellow]")
+        console.print(f"[green][+] HTTP Status Code    :[/green] {response.status_code}")
         
-        try:
-            response = requests.get(test_url, timeout=5)
-            if XSS_PAYLOAD in response.text:
-                console.print(f"[bold green][!] VULNERABLE TO XSS![/bold green] Parameter: [cyan]{param}[/cyan]")
-                console.print(f"[green]Proof of Concept: {test_url}[/green]")
-                vulnerable = True
-        except Exception as e:
-            pass
-            
-    if not vulnerable:
-        console.print("[red][-] XSS vulnerability nahi mili is URL par.[/red]")
-
-def scan_sqli(target_url):
-    console.print(f"[yellow][*] Testing for SQL Injection on: {target_url}[/yellow]")
-    parsed_url = urlparse(target_url)
-    params = parse_qs(parsed_url.query)
-    
-    if not params:
-        console.print("[red][!] URL me koi parameters nahi mile.[/red]")
-        return
-
-    sql_errors = ["sql syntax", "mysql_fetch", "syntax error", "unclosed quotation mark", "odbc_"]
-    vulnerable = False
-
-    for param in params:
-        test_params = params.copy()
-        test_params[param] = SQLI_PAYLOAD
-        new_query = urlencode(test_params, doseq=True)
-        new_parts = parsed_url._replace(query=new_query)
-        test_url = urlunparse(new_parts)
+        server = response.headers.get("Server", "Hidden/Unknown")
+        console.print(f"[green][+] Server Software     :[/green] {server}")
         
-        try:
-            response = requests.get(test_url, timeout=5)
-            for error in sql_errors:
-                if error in response.text.lower():
-                    console.print(f"[bold green][!] POSSIBLE SQL INJECTION FOUND![/bold green] Parameter: [cyan]{param}[/cyan]")
-                    console.print(f"[green]Proof of Concept: {test_url}[/green]")
-                    vulnerable = True
-                    break
-        except Exception as e:
-            pass
-            
-    if not vulnerable:
-        console.print("[red][-] SQL Injection ka koi sign nahi mila.[/red]")
+        # Check for Cloudflare / WAF (Fake IP hiding real backend)
+        if "cloudflare" in server.lower() or "cf-ray" in response.headers:
+            console.print("[bold red][!] WAF Detected:[/bold red] Yeh site Cloudflare ke peeche chhupi hai (Real IP masked hai!).")
+        else:
+            console.print("[green][+] WAF/CDN             :[/green] Direct Server (No Cloudflare mask detected).")
+
+        # Check important security headers
+        headers_to_check = ["X-Frame-Options", "Content-Security-Policy", "X-XSS-Protection"]
+        for h in headers_to_check:
+            if h in response.headers:
+                console.print(f"    [green]✔ {h}: Present[/green]")
+            else:
+                console.print(f"    [red]✘ {h}: Missing (Vulnerable to misconfig)[/red]")
+
+    except Exception as e:
+        console.print(f"[red][-] HTTP Header check error: {e}[/red]")
+
+    # 4. Port Scanner (Common Ports)
+    console.print(f"\n[bold yellow][*] Scanning Common Ports on {ip}...[/bold yellow]")
+    common_ports = [21, 22, 80, 443, 8080, 3306]
+    for port in common_ports:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+        result = s.connect_ex((ip, port))
+        if result == 0:
+            console.print(f"    [bold green]✔ Port {port} is OPEN[/bold green]")
+        else:
+            console.print(f"    [dim red]✘ Port {port} is closed[/dim red]")
+        s.close()
 
 def main():
     banner()
-    console.print("[1] XSS Vulnerability Scanner")
-    console.print("[2] SQL Injection Error Scanner")
+    console.print("[1] Full Recon & IP/Hosting Intelligence (Works on any website)")
+    console.print("[2] Exit")
     
     choice = console.input("\n[bold cyan]Option chunein (1/2): [/bold cyan]")
-    url = console.input("Target URL dalein (jaise http://testphp.vulnweb.com/listproducts.php?cat=1): ")
-    
     if choice == "1":
-        scan_xss(url)
-    elif choice == "2":
-        scan_sqli(url)
-    else:
-        console.print("[red]Galat choice![/red]")
-
-if __name__ == "__main__":
-    main()
+        target = console.input("Target Domain ya URL dalein (jaise rocketbhai
